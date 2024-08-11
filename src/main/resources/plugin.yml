@@ -1,0 +1,32 @@
+name: UFAntigrief
+main: com.example.ufantigrief.UFAntigrief
+version: 1.0
+api-version: 1.21
+description: Плагин для мониторинга и предотвращения гриферства на вашем сервере Minecraft.
+author: UFAVS
+commands:
+  monitor:
+    description: Добавить или удалить игроков из вайт-листа мониторинга.
+    usage: /<command> <add|remove> <player>
+    permission: ufantigrief.toggle
+  agalerts:
+    description: Включение и отключение уведомлений для администраторов.
+    usage: /agalerts <on/off>
+    permission: ufantigrief.alerts
+  agreload:
+    description: Перезагружает конфигурацию плагина.
+    usage: /agreload
+    permission: ufantigrief.reload
+permissions:
+  ufantigrief.notify:
+    description: Позволяет получать уведомления о мониторинге игроков.
+    default: op
+  ufantigrief.toggle:
+    description: Позволяет переключать мониторинг для игроков.
+    default: op
+  ufantigrief.alerts:
+    description: Позволяет включать и отключать уведомления.
+    default: op
+  ufantigrief.reload:
+    description: Позволяет перезагружать плагин.
+    default: op
