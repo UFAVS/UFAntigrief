@@ -8,6 +8,7 @@ import org.bukkit.entity.EnderCrystal;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockIgniteEvent;
@@ -70,7 +71,7 @@ public class ExplosionAndFireListener implements Listener {
     private Player getPlayerFromEntity(Entity entity) {
         if (entity instanceof Player) {
             return (Player) entity;
-        } else if (entity instanceof Creeper || entity instanceof EnderCrystal) {
+        } else if (entity instanceof Creeper || entity instanceof EnderCrystal || entity instanceof ExplosiveMinecart) {
             return getNearestPlayer(entity.getLocation());
         }
         return null;
@@ -84,8 +85,8 @@ public class ExplosionAndFireListener implements Listener {
             return Material.CREEPER_HEAD;  // Крипер
         } else if (entity instanceof EnderCrystal) {
             return Material.END_CRYSTAL;  // Кристалл
-        } else if (entity instanceof EnderCrystal) {
-            return Material.END_CRYSTAL;  // Кристалл
+        } else if (entity instanceof ExplosiveMinecart) {
+            return Material.TNT_MINECART;  // Вагонетка с динамитом
         }
         return Material.TNT;  // По умолчанию для других взрывов
     }
