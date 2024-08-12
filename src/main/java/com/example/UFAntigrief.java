@@ -32,8 +32,8 @@ public class UFAntigrief extends JavaPlugin implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("agreload")) {
             if (sender.hasPermission("ufantigrief.reload")) {
-                reloadConfig(); // Перезагружаем конфигурацию
-                theftListener.updatePlayTimeThreshold(); // Обновляем minPlayTimeThreshold
+                reloadConfig(); // Перезагружаем конфигурационный файл
+                theftListener.reloadPluginConfig(); // Обновляем все настройки в TheftListener
                 sender.sendMessage(ChatColor.RED + "[ Защита ]" + ChatColor.GREEN + " Конфигурация успешно перезагружена!");
             } else {
                 sender.sendMessage(ChatColor.RED + "У вас нет прав для выполнения этой команды.");

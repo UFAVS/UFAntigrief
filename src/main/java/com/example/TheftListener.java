@@ -42,10 +42,12 @@ public class TheftListener implements Listener {
     private final Map<UUID, Integer> playerViolations = new HashMap<>();
     private final File whitelistFile;
     private final FileConfiguration whitelistConfig;
-    private final String teleportCommand;
+    private String teleportCommand;
+    private String banCommand;
 
     public TheftListener(JavaPlugin plugin) {
         this.plugin = plugin;
+        reloadPluginConfig();
         FileConfiguration config = plugin.getConfig();
 
         minPlayTimeThreshold = config.getLong("minPlayTimeHours") * 60 * 60 * 20; // Пороговое время в тиках (часы * 60 мин * 60 сек * 20 тиков)
@@ -87,6 +89,17 @@ public class TheftListener implements Listener {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void reloadPluginConfig() {
+        plugin.reloadConfig(); // Перезагружаем конфигурационный файл
+        FileConfiguration config = plugin.getConfig();
+
+        // Обновляем все настройки из конфигурации
+        this.minPlayTimeThreshold = config.getLong("minPlayTimeHours") * 60 * 60 * 20;
+        this.teleportCommand = config.getString("teleportCommand", "/tp {player} {x} {y} {z}");
+        this.banCommand = config.getString("banCommand", "ban {player} Подозрительное поведение");
+        // Добавьте сюда перезагрузку других настроек по мере необходимости
     }
 
     @EventHandler
@@ -158,8 +171,8 @@ public class TheftListener implements Listener {
                     playerViolations.put(player.getUniqueId(), violations);
 
                     if (violations >= violationThreshold) {
-                        String banCommand = plugin.getConfig().getString("banCommand").replace("{player}", player.getName());
-                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), banCommand);
+                        String banCommandToExecute = banCommand.replace("{player}", player.getName());
+                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), banCommandToExecute);
                     }
                 });
             }
