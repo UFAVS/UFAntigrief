@@ -9,17 +9,18 @@ import org.bukkit.ChatColor;
 public class UFAntigrief extends JavaPlugin implements CommandExecutor {
 
     private com.example.ufantigrief.TheftListener theftListener;
-    private String someSetting;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        someSetting = getConfig().getString("some-setting");
         theftListener = new com.example.ufantigrief.TheftListener(this);
         getServer().getPluginManager().registerEvents(theftListener, this);
         getCommand("monitor").setExecutor(new com.example.ufantigrief.MonitorCommand(theftListener));
         getCommand("agalerts").setExecutor(new com.example.ufantigrief.MonitorCommand(theftListener));
         getCommand("agreload").setExecutor(this); // Регистрируем команду agreload
+
+        com.example.ufantigrief.ExplosionAndFireListener explosionAndFireListener = new com.example.ufantigrief.ExplosionAndFireListener(theftListener, this);
+        getServer().getPluginManager().registerEvents(explosionAndFireListener, this);
     }
 
     @Override

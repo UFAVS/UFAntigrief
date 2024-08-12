@@ -28,8 +28,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 public class TheftListener implements Listener {
 
@@ -121,40 +121,39 @@ public class TheftListener implements Listener {
         return !disabledAlertsPlayers.contains(player.getUniqueId());
     }
 
-    private boolean isMonitored(Player player) {
+    boolean isMonitored(Player player) {
         int playTimeTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE);
         boolean isBelowThreshold = playTimeTicks < minPlayTimeThreshold;
         return monitoredPlayers.contains(player.getUniqueId()) && !whitelistPlayers.contains(player.getUniqueId()) && isBelowThreshold;
     }
 
-    private void alertAdmins(Player player, String action, Material material, Location location) {
-        String message = ChatColor.RED + "[ Защита ] " + ChatColor.LIGHT_PURPLE + player.getName() + ChatColor.WHITE + " " +
-                action + " " + ChatColor.AQUA + material.name() + ChatColor.WHITE + " на координатах " +
-                ChatColor.YELLOW + locationToString(location) + ChatColor.WHITE +
-                " (Время игры: " + ChatColor.GREEN + getFormattedPlayTime(player) + ChatColor.WHITE + ")";
-        boolean moderatorOnline = false;
+    CompletableFuture<Void> alertAdminsAsync(Player player, String action, Material material, Location location) {
+        return CompletableFuture.runAsync(() -> {
+            String message = ChatColor.RED + "[ Защита ] " + ChatColor.LIGHT_PURPLE + player.getName() + ChatColor.WHITE + " " +
+                    action + " " + ChatColor.AQUA + material.name() + ChatColor.WHITE + " на координатах " +
+                    ChatColor.YELLOW + locationToString(location) + ChatColor.WHITE +
+                    " (Время игры: " + ChatColor.GREEN + getFormattedPlayTime(player) + ChatColor.WHITE + ")";
+            boolean moderatorOnline = false;
 
-        for (Player admin : Bukkit.getOnlinePlayers()) {
-            if (admin.hasPermission("ufantigrief.notify") && !disabledAlertsPlayers.contains(admin.getUniqueId())) {
-                TextComponent textComponent = new TextComponent(message);
-                TextComponent tpComponent = new TextComponent(ChatColor.LIGHT_PURPLE + " [Телепорт]");
-                // Заменяем placeholders в команде телепортации
-                String tpCommand = teleportCommand
-                        .replace("{player}", admin.getName())
-                        .replace("{x}", String.valueOf(location.getX()))
-                        .replace("{y}", String.valueOf(location.getY()))
-                        .replace("{z}", String.valueOf(location.getZ()));
-                tpComponent.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, tpCommand));
-                admin.spigot().sendMessage(textComponent, tpComponent);
+            for (Player admin : Bukkit.getOnlinePlayers()) {
+                if (admin.hasPermission("ufantigrief.notify") && !disabledAlertsPlayers.contains(admin.getUniqueId())) {
+                    TextComponent textComponent = new TextComponent(message);
+                    TextComponent tpComponent = new TextComponent(ChatColor.LIGHT_PURPLE + " [Телепорт]");
+                    // Заменяем placeholders в команде телепортации
+                    String tpCommand = teleportCommand
+                            .replace("{player}", admin.getName())
+                            .replace("{x}", String.valueOf(location.getX()))
+                            .replace("{y}", String.valueOf(location.getY()))
+                            .replace("{z}", String.valueOf(location.getZ()));
+                    tpComponent.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, tpCommand));
+                    admin.spigot().sendMessage(textComponent, tpComponent);
 
-                moderatorOnline = true;
+                    moderatorOnline = true;
+                }
             }
-        }
 
-        if (!moderatorOnline) {
-            new BukkitRunnable() {
-                @Override
-                public void run() {
+            if (!moderatorOnline) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
                     int violations = playerViolations.getOrDefault(player.getUniqueId(), 0) + 1;
                     playerViolations.put(player.getUniqueId(), violations);
 
@@ -162,9 +161,9 @@ public class TheftListener implements Listener {
                         String banCommand = plugin.getConfig().getString("banCommand").replace("{player}", player.getName());
                         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), banCommand);
                     }
-                }
-            }.runTask(plugin);
-        }
+                });
+            }
+        }, plugin.getServer().getScheduler().getMainThreadExecutor(plugin));
     }
 
     private String getFormattedPlayTime(Player player) {
@@ -187,12 +186,7 @@ public class TheftListener implements Listener {
         if (isMonitored(player) && com.example.ufantigrief.ValuableItems.isValuable(event.getBlock().getType())) {
             Material blockType = event.getBlock().getType();
             if (blockType != Material.AIR) {
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        alertAdmins(player, "сломал", blockType, event.getBlock().getLocation());
-                    }
-                }.runTaskAsynchronously(plugin);
+                alertAdminsAsync(player, "сломал", blockType, event.getBlock().getLocation());
             }
         }
     }
@@ -203,12 +197,7 @@ public class TheftListener implements Listener {
         if (isMonitored(player) && com.example.ufantigrief.ValuableItems.isValuable(event.getBlock().getType())) {
             Material blockType = event.getBlock().getType();
             if (blockType != Material.AIR) {
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        alertAdmins(player, "поставил", blockType, event.getBlock().getLocation());
-                    }
-                }.runTaskAsynchronously(plugin);
+                alertAdminsAsync(player, "поставил", blockType, event.getBlock().getLocation());
             }
         }
     }
@@ -222,12 +211,7 @@ public class TheftListener implements Listener {
                 Material cursorItemMaterial = event.getCursor() != null ? event.getCursor().getType() : null;
 
                 if (com.example.ufantigrief.ValuableItems.isValuable(currentItemMaterial)) {
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            alertAdmins(player, "переместил", currentItemMaterial, player.getLocation());
-                        }
-                    }.runTaskAsynchronously(plugin);
+                    alertAdminsAsync(player, "переместил", currentItemMaterial, player.getLocation());
                 }
             }
         }
@@ -238,12 +222,7 @@ public class TheftListener implements Listener {
         if (event.getEntity() instanceof Player) {
             Player player = (Player) event.getEntity();
             if (isMonitored(player) && com.example.ufantigrief.ValuableItems.isValuable(event.getItem().getItemStack().getType())) {
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        alertAdmins(player, "поднял предмет", event.getItem().getItemStack().getType(), player.getLocation());
-                    }
-                }.runTaskAsynchronously(plugin);
+                alertAdminsAsync(player, "поднял предмет", event.getItem().getItemStack().getType(), player.getLocation());
             }
         }
     }
