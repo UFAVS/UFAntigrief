@@ -1,5 +1,6 @@
 com\example\ufantigrief\ValuableItems.class
 com\example\ufantigrief\ExplosionAndFireListener.class
+com\example\ufantigrief\WebhookNotifier.class
 com\example\ufantigrief\MonitorCommand.class
 com\example\ufantigrief\TheftListener.class
 com\example\ufantigrief\UFAntigrief.class

@@ -1,4 +1,5 @@
 # Настройки плагина
 minPlayTimeHours: 10  # Минимальное количество часов, после которого слежка отключается
 banCommand: "ban {player} Подозрительное поведение"  # Команда для бана
-teleportCommand: "/tp {player} {x} {y} {z}" # Команда для телепортации
+teleportCommand: "/tp {player} {x} {y} {z}"  # Команда для телепортации
+webhookURL: "https://your-webhook-url.com"  # URL для отправки уведомлений

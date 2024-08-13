@@ -17,7 +17,6 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 
@@ -34,6 +33,7 @@ import java.util.stream.Collectors;
 public class TheftListener implements Listener {
 
     private final JavaPlugin plugin;
+    private final com.example.ufantigrief.WebhookNotifier webhookNotifier;
     private final Set<UUID> monitoredPlayers = new HashSet<>();
     private final Set<UUID> whitelistPlayers = new HashSet<>();
     private final Set<UUID> disabledAlertsPlayers = new HashSet<>();
@@ -47,6 +47,7 @@ public class TheftListener implements Listener {
 
     public TheftListener(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.webhookNotifier = new com.example.ufantigrief.WebhookNotifier(plugin);
         reloadPluginConfig();
         FileConfiguration config = plugin.getConfig();
 
@@ -99,7 +100,7 @@ public class TheftListener implements Listener {
         this.minPlayTimeThreshold = config.getLong("minPlayTimeHours") * 60 * 60 * 20;
         this.teleportCommand = config.getString("teleportCommand", "/tp {player} {x} {y} {z}");
         this.banCommand = config.getString("banCommand", "ban {player} Подозрительное поведение");
-        // Добавьте сюда перезагрузку других настроек по мере необходимости
+        this.webhookNotifier.reloadConfig(); // Обновляем URL вебхука        // Добавьте сюда перезагрузку других настроек по мере необходимости
     }
 
     @EventHandler
@@ -176,6 +177,18 @@ public class TheftListener implements Listener {
                     }
                 });
             }
+
+            // Отправка уведомления в Webhook
+            String formattedLocation = locationToString(location);
+            String formattedPlayTime = getFormattedPlayTime(player);
+            webhookNotifier.sendNotification(
+                    "Уведомление о нарушении",
+                    "Детали нарушения",
+                    player.getName(),
+                    action + " " + material.name(),
+                    formattedLocation,
+                    formattedPlayTime
+            );
         }, plugin.getServer().getScheduler().getMainThreadExecutor(plugin));
     }
 
@@ -220,11 +233,12 @@ public class TheftListener implements Listener {
         if (event.getWhoClicked() instanceof Player) {
             Player player = (Player) event.getWhoClicked();
             if (isMonitored(player) && event.getInventory().getType() != InventoryType.CRAFTING) {
-                Material currentItemMaterial = event.getCurrentItem() != null ? event.getCurrentItem().getType() : null;
-                Material cursorItemMaterial = event.getCursor() != null ? event.getCursor().getType() : null;
-
-                if (com.example.ufantigrief.ValuableItems.isValuable(currentItemMaterial)) {
-                    alertAdminsAsync(player, "переместил", currentItemMaterial, player.getLocation());
+                Material currentItemMaterial = event.getCurrentItem() != null ? event.getCurrentItem().getType() : Material.AIR;
+                Material cursorItemMaterial = event.getCursor() != null ? event.getCursor().getType() : Material.AIR;
+                if (com.example.ufantigrief.ValuableItems.isValuable(currentItemMaterial) ||
+                        com.example.ufantigrief.ValuableItems.isValuable(cursorItemMaterial)) {
+                    Location location = player.getLocation();
+                    alertAdminsAsync(player, "взаимодействует с", currentItemMaterial != Material.AIR ? currentItemMaterial : cursorItemMaterial, location);
                 }
             }
         }
@@ -235,7 +249,10 @@ public class TheftListener implements Listener {
         if (event.getEntity() instanceof Player) {
             Player player = (Player) event.getEntity();
             if (isMonitored(player) && com.example.ufantigrief.ValuableItems.isValuable(event.getItem().getItemStack().getType())) {
-                alertAdminsAsync(player, "поднял предмет", event.getItem().getItemStack().getType(), player.getLocation());
+                Material itemType = event.getItem().getItemStack().getType();
+                if (itemType != Material.AIR) {
+                    alertAdminsAsync(player, "подобрал", itemType, player.getLocation());
+                }
             }
         }
     }
