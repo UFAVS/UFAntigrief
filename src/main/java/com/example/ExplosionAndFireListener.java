@@ -1,13 +1,11 @@
 package com.example.ufantigrief;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.entity.Creeper;
-import org.bukkit.entity.EnderCrystal;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Player;
+import org.bukkit.block.Block;
+import org.bukkit.entity.*;
 import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,7 +14,9 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.ExplosionPrimeEvent;
 import org.bukkit.plugin.Plugin;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 public class ExplosionAndFireListener implements Listener {
 
@@ -31,29 +31,44 @@ public class ExplosionAndFireListener implements Listener {
     @EventHandler
     public void onExplosionPrime(ExplosionPrimeEvent event) {
         Entity entity = event.getEntity();
-        Player player = getPlayerFromEntity(entity);
-        Material material = getMaterialFromEntity(entity);
-
-        if (player != null && theftListener.isMonitored(player)) {
-            Location location = entity.getLocation();
-            CompletableFuture.runAsync(() -> {
-                theftListener.alertAdminsAsync(player, "создал взрыв", material, location);
-            });
-        }
+        CompletableFuture.supplyAsync(() -> getPlayerFromEntity(entity))
+                .thenAcceptAsync(player -> {
+                    if (player != null && theftListener.isMonitored(player)) {
+                        Material material = getMaterialFromEntity(entity);
+                        Location location = entity.getLocation();
+                        theftListener.alertAdminsAsync(player, "создал взрыв", material, location);
+                    }
+                });
     }
 
     @EventHandler
     public void onEntityExplode(EntityExplodeEvent event) {
         Entity entity = event.getEntity();
-        Player player = getPlayerFromEntity(entity);
-        Material material = getMaterialFromEntity(entity);
+        CompletableFuture.supplyAsync(() -> {
+            Player player = getPlayerFromEntity(entity);
+            List<Block> affectedBlocks = event.blockList();
+            return new Object[]{player, affectedBlocks};
+        }).thenAcceptAsync(result -> {
+            Player player = (Player) result[0];
+            List<Block> affectedBlocks = (List<Block>) result[1];
 
-        if (player != null && theftListener.isMonitored(player)) {
-            Location location = entity.getLocation();
-            CompletableFuture.runAsync(() -> {
-                theftListener.alertAdminsAsync(player, "взорвал", material, location);
-            });
-        }
+            if (player != null && theftListener.isMonitored(player)) {
+                List<Material> destroyedValuableItems = affectedBlocks.stream()
+                        .map(Block::getType)
+                        .filter(com.example.ufantigrief.ValuableItems::isValuable)
+                        .collect(Collectors.toList());
+
+                if (!destroyedValuableItems.isEmpty()) {
+                    Material explosiveMaterial = getMaterialFromEntity(entity);
+                    Location location = entity.getLocation();
+                    String destroyedItems = destroyedValuableItems.stream()
+                            .map(Material::name)
+                            .collect(Collectors.joining(", "));
+
+                    theftListener.alertAdminsAsync(player, "взорвал ценные предметы: " + ChatColor.BLUE + destroyedItems, explosiveMaterial, location);
+                }
+            }
+        });
     }
 
     @EventHandler
