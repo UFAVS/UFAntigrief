@@ -17,8 +17,11 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import net.md_5.bungee.api.chat.ClickEvent;
-import net.md_5.bungee.api.chat.TextComponent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,10 +47,12 @@ public class TheftListener implements Listener {
     private final FileConfiguration whitelistConfig;
     private String teleportCommand;
     private String banCommand;
+    private final BukkitAudiences adventure;
 
     public TheftListener(JavaPlugin plugin) {
         this.plugin = plugin;
         this.webhookNotifier = new com.example.ufantigrief.WebhookNotifier(plugin);
+        this.adventure = BukkitAudiences.create(plugin); // Инициализация Adventure API
         reloadPluginConfig();
         FileConfiguration config = plugin.getConfig();
 
@@ -100,7 +105,8 @@ public class TheftListener implements Listener {
         this.minPlayTimeThreshold = config.getLong("minPlayTimeHours") * 60 * 60 * 20;
         this.teleportCommand = config.getString("teleportCommand", "/tp {player} {x} {y} {z}");
         this.banCommand = config.getString("banCommand", "ban {player} Подозрительное поведение");
-        this.webhookNotifier.reloadConfig(); // Обновляем URL вебхука        // Добавьте сюда перезагрузку других настроек по мере необходимости
+        this.webhookNotifier.reloadConfig(); // Обновляем URL вебхука
+        // Добавьте сюда перезагрузку других настроек по мере необходимости
     }
 
     @EventHandler
@@ -143,24 +149,30 @@ public class TheftListener implements Listener {
 
     CompletableFuture<Void> alertAdminsAsync(Player player, String action, Material material, Location location) {
         return CompletableFuture.runAsync(() -> {
-            String message = ChatColor.RED + "[ Защита ] " + ChatColor.LIGHT_PURPLE + player.getName() + ChatColor.WHITE + " " +
-                    action + " " + ChatColor.AQUA + material.name() + ChatColor.WHITE + " на координатах " +
-                    ChatColor.YELLOW + locationToString(location) + ChatColor.WHITE +
-                    " (Время игры: " + ChatColor.GREEN + getFormattedPlayTime(player) + ChatColor.WHITE + ")";
+            // Создаем компонент сообщения
+            Component message = Component.text("[ Защита ] ")
+                    .color(NamedTextColor.RED)
+                    .append(Component.text(player.getName() + " " + action + " ", NamedTextColor.WHITE))
+                    .append(Component.text(material.name() + " ", NamedTextColor.AQUA))
+                    .append(Component.text("на координатах " + locationToString(location) + " ", NamedTextColor.YELLOW))
+                    .append(Component.text("(Время игры: " + getFormattedPlayTime(player) + ")", NamedTextColor.GREEN));
+
             boolean moderatorOnline = false;
 
             for (Player admin : Bukkit.getOnlinePlayers()) {
                 if (admin.hasPermission("ufantigrief.notify") && !disabledAlertsPlayers.contains(admin.getUniqueId())) {
-                    TextComponent textComponent = new TextComponent(message);
-                    TextComponent tpComponent = new TextComponent(ChatColor.LIGHT_PURPLE + " [Телепорт]");
-                    // Заменяем placeholders в команде телепортации
-                    String tpCommand = teleportCommand
-                            .replace("{player}", admin.getName())
-                            .replace("{x}", String.valueOf(location.getX()))
-                            .replace("{y}", String.valueOf(location.getY()))
-                            .replace("{z}", String.valueOf(location.getZ()));
-                    tpComponent.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, tpCommand));
-                    admin.spigot().sendMessage(textComponent, tpComponent);
+                    // Создаем компонент для кнопки телепортации
+                    Component tpComponent = Component.text(" [Телепорт]")
+                            .color(NamedTextColor.LIGHT_PURPLE)
+                            .decorate(TextDecoration.BOLD)
+                            .clickEvent(ClickEvent.runCommand(teleportCommand
+                                    .replace("{player}", admin.getName())
+                                    .replace("{x}", String.valueOf(location.getX()))
+                                    .replace("{y}", String.valueOf(location.getY()))
+                                    .replace("{z}", String.valueOf(location.getZ()))));
+
+                    // Отправляем сообщение администратору
+                    adventure.player(admin).sendMessage(message.append(tpComponent));
 
                     moderatorOnline = true;
                 }
@@ -221,39 +233,33 @@ public class TheftListener implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
         if (isMonitored(player) && com.example.ufantigrief.ValuableItems.isValuable(event.getBlock().getType())) {
-            Material blockType = event.getBlock().getType();
-            if (blockType != Material.AIR) {
-                alertAdminsAsync(player, "поставил", blockType, event.getBlock().getLocation());
-            }
+            alertAdminsAsync(player, "поставил", event.getBlock().getType(), event.getBlock().getLocation());
         }
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getWhoClicked() instanceof Player) {
+        if (event.getInventory().getType() == InventoryType.CHEST) {
             Player player = (Player) event.getWhoClicked();
-            if (isMonitored(player) && event.getInventory().getType() != InventoryType.CRAFTING) {
-                Material currentItemMaterial = event.getCurrentItem() != null ? event.getCurrentItem().getType() : Material.AIR;
-                Material cursorItemMaterial = event.getCursor() != null ? event.getCursor().getType() : Material.AIR;
-                if (com.example.ufantigrief.ValuableItems.isValuable(currentItemMaterial) ||
-                        com.example.ufantigrief.ValuableItems.isValuable(cursorItemMaterial)) {
-                    Location location = player.getLocation();
-                    alertAdminsAsync(player, "взаимодействует с", currentItemMaterial != Material.AIR ? currentItemMaterial : cursorItemMaterial, location);
-                }
+            if (isMonitored(player) && event.getCurrentItem() != null && com.example.ufantigrief.ValuableItems.isValuable(event.getCurrentItem().getType())) {
+                alertAdminsAsync(player, "взял", event.getCurrentItem().getType(), player.getLocation());
             }
         }
     }
 
     @EventHandler
-    public void onEntityPickupItem(EntityPickupItemEvent event) {
+    public void onItemPickup(EntityPickupItemEvent event) {
         if (event.getEntity() instanceof Player) {
             Player player = (Player) event.getEntity();
             if (isMonitored(player) && com.example.ufantigrief.ValuableItems.isValuable(event.getItem().getItemStack().getType())) {
-                Material itemType = event.getItem().getItemStack().getType();
-                if (itemType != Material.AIR) {
-                    alertAdminsAsync(player, "подобрал", itemType, player.getLocation());
-                }
+                alertAdminsAsync(player, "подобрал", event.getItem().getItemStack().getType(), player.getLocation());
             }
+        }
+    }
+
+    public void onDisable() {
+        if (adventure != null) {
+            adventure.close(); // Закрываем Adventure API
         }
     }
 }
